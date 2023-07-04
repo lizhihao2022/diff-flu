@@ -364,7 +364,6 @@ class FactorizedSpectralConv(nn.Module):
         return self.get_conv(indices)
 
 
-
 class SubConv(nn.Module):
     """Class representing one of the convolutions from the mother joint factorized convolution
 

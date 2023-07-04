@@ -221,7 +221,7 @@ class Trainer:
         n_samples = 0
         with torch.no_grad():
             for it, sample in enumerate(data_loader):
-                x, y = sample['x'], sample['y']
+                x, y = sample[0], sample[1]
 
                 n_samples += x.size(0)
                 

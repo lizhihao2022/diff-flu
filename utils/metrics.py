@@ -1,8 +1,29 @@
 from time import time
-
+import torch
 from math import sqrt
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, mean_absolute_percentage_error
 import numpy as np
+from neuralop.training.losses import LpLoss, H1Loss
+
+
+METRIC_DICT = {
+    'mae': mean_absolute_error,
+    'rmse': lambda y_true, y_pred: sqrt(mean_squared_error(y_true, y_pred)),
+    'r2': r2_score,
+    'mape': mean_absolute_percentage_error,
+    'mse': mean_squared_error,
+    # 'l2': lambda y_true, y_pred: torch.mean(torch.pow(y_true - y_pred, 2)),
+    'l2': LpLoss(d=2, p=2),
+    'h1': H1Loss(d=2),
+    'MAE': mean_absolute_error,
+    'RMSE': lambda y_true, y_pred: sqrt(mean_squared_error(y_true, y_pred)),
+    'R2': r2_score,
+    'MAPE': mean_absolute_percentage_error,
+    'MSE': mean_squared_error,
+    'L2': LpLoss(d=2, p=2),
+    'H1': H1Loss(d=2),
+}
+VALID_METRICS = list(METRIC_DICT.keys())
 
 
 class AverageRecord(object):
@@ -22,51 +43,35 @@ class AverageRecord(object):
 
 
 class Metrics:
-    def __init__(self, split="valid"):
+    def __init__(self, metrics=['mae', 'r2'], split="valid"):
+        self.metric_list = metrics
         self.start_time = time()
         self.split = split
-
-        self.y_pred = None
-        self.y_true = None
-
-        self.mae = None
-        self.rmse = None
-        self.r2 = None
+        self.metrics = {metric: AverageRecord() for metric in self.metric_list}
 
     def update(self, y_pred, y_true):
-        if self.y_pred is None:
-            self.y_pred = y_pred
-            self.y_true = y_true
-        else:
-            self.y_pred = np.concatenate((self.y_pred, y_pred))
-            self.y_true = np.concatenate((self.y_true, y_true))
-        self.compute_metrics()
+        for metric in self.metric_list:
+            self.metrics[metric].update(METRIC_DICT[metric](y_true, y_pred))
 
     def compute_metrics(self):
-        self.mae = mean_absolute_error(self.y_true, self.y_pred)
-        self.rmse = sqrt(mean_squared_error(self.y_true, self.y_pred))
-        self.r2 = r2_score(self.y_true, self.y_pred)
-        self.mape = mean_absolute_percentage_error(self.y_true, self.y_pred)
+        for metric in self.metric_list:
+            self.metrics[metric] = METRIC_DICT[metric](self.y_true, self.y_pred)
 
     def format_metrics(self):
-        result = "MAE: {:.8f} | ".format(self.mae)
-        result += "MAPE: {:.4f} | ".format(self.mape)
-        result += "RMSE: {:.4f} | ".format(self.rmse)
-        result += "R2: {:.2%} | ".format(self.r2)
+        result = ""
+        for metric in self.metric_list:
+            result += "{}: {:.4f} | ".format(metric.upper(), self.metrics[metric].avg)
         result += "Time: {:.2f}s".format(time() - self.start_time)
 
         return result
 
     def to_dict(self):
         return {
-            "{} MAE".format(self.split): self.mae,
-            "{} MAPE".format(self.split): self.mape,
-            "{} RMSE".format(self.split): self.rmse,
-            "{} R2".format(self.split): self.r2
+            metric: self.metrics[metric].avg for metric in self.metric_list
         }
-        
+
     def __repr__(self):
-        return self.mae
+        return self.metrics[self.metric_list[0]].avg
     
     def __str__(self):
         return self.format_metrics()
